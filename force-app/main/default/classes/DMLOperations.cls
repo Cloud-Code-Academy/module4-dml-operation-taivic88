@@ -182,6 +182,9 @@ public with sharing class DMLOperations {
      * @param oppNames The list of Opportunity names.
      */
     public static void upsertOpportunities(String accountName, List<String> oppNames) {
+        /*
+
+        // Vic Notes: BEFORE CREATING External_Id__c FIELD ON ACCOUNTS
         // Vic Notes: get Account Ids and map to Account names
         List<Account> accs = [
             SELECT Id, Name
@@ -202,6 +205,7 @@ public with sharing class DMLOperations {
             accNameToId.put(newAcc.Name, newAcc.Id);
         }
 
+        // Vic Notes: Map for exsting Opps
         Map<String, Opportunity> existingOpps = new Map<String, Opportunity>();
         
         Id accountId = accNameToId.get(accountName);
@@ -239,6 +243,54 @@ public with sharing class DMLOperations {
                 );
             }
             
+            upsertOpps.add(opp);
+        }
+        
+        upsert upsertOpps; 
+
+        */
+
+        // Vic Notes: AFTER CREATING External_Id__c FIELD ON ACCOUNTS
+        // Vic Notes: Upsert account using external id field
+        Account acc = new Account(
+            Name = accountName,
+            External_Id__c = accountName
+        );
+        
+        upsert acc External_Id__c;
+        
+        // Query for existing opportunities
+        Map<String, Opportunity> existingOpps = new Map<String, Opportunity>();
+        List<Opportunity> existingOppList = [
+            SELECT Id, Name, AccountId, StageName, CloseDate
+            FROM Opportunity 
+            WHERE AccountId = :acc.Id AND Name IN :oppNames
+        ];
+        
+        for (Opportunity opp : existingOppList) {
+            existingOpps.put(opp.Name, opp);
+        }
+
+        // Create or update opportunities
+        List<Opportunity> upsertOpps = new List<Opportunity>();
+        
+        for (String oppName : oppNames) {
+            Opportunity opp;
+            
+            if (existingOpps.containsKey(oppName)) {
+                // Update existing opportunity
+                opp = existingOpps.get(oppName);
+                opp.StageName = 'Prospecting';
+                opp.CloseDate = Date.today().addMonths(3);
+            } else {
+                // Create new opportunity
+                opp = new Opportunity(
+                    Name = oppName,
+                    AccountId = acc.Id,
+                    StageName = 'Prospecting',
+                    CloseDate = Date.today().addMonths(3)
+                );
+            }
             upsertOpps.add(opp);
         }
         
